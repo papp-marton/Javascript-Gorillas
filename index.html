@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <style>
+      canvas {
+        border: 1px solid #000;
+      }
+    </style>
+    <title>Javascript Gorillas</title>
+  </head>
+  <body style="margin: auto; max-width: max-content">
+    <h3 style="text-align: center">
+      <div id="scoreboard">Player 1: 0 | Player 2: 0</div>
+    </h3>
+    <canvas id="gameCanvas" width="800" height="400"></canvas>
+    <br />
+    <label for="angleInput1">Player 1 Angle (0-90):</label>
+    <input type="number" id="angleInput1" value="45" min="0" max="90" />
+    <label for="velocityInput1">Player 1 Velocity (0-100):</label>
+    <input type="number" id="velocityInput1" value="20" min="0" max="100" />
+    <button id="throwButton1">Player 1 Throw Banana</button>
+    <br />
+    <label for="angleInput2">Player 2 Angle (0-90):</label>
+    <input type="number" id="angleInput2" value="45" min="0" max="90" />
+    <label for="velocityInput2">Player 2 Velocity (0-100):</label>
+    <input type="number" id="velocityInput2" value="20" min="0" max="100" />
+    <button id="throwButton2">Player 2 Throw Banana</button>
+
+    <script>
+      document.addEventListener("DOMContentLoaded", function () {
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+        const scoreboardElement = document.getElementById("scoreboard");
+
+        let player1Score = 0;
+        let player2Score = 0;
+        const maxScore = 3;
+
+        let buildings;
+        const chunkRadius = 20;
+        let damages = new Set();
+        const deltaTime = 0.1; 
+
+        const player1 = {
+          x: 27.5,
+          y: 0,
+          width: 20,
+          height: 20,
+          color: "#0095DD",
+          angleInput: document.getElementById("angleInput1"),
+          velocityInput: document.getElementById("velocityInput1"),
+        };
+
+        const player2 = {
+          x: 750,
+          y: 0,
+          width: 20,
+          height: 20,
+          color: "#FF0000",
+          angleInput: document.getElementById("angleInput2"),
+          velocityInput: document.getElementById("velocityInput2"),
+        };
+
+        let whoIsNext = player1;
+
+        const banana = {
+          x: 0,
+          y: 0,
+          radius: 5,
+          color: "#FFD700",
+          velocity: { x: 0, y: 0 },
+          gravity: 1,
+          inMotion: false,
+        };
+
+        function resetGame() {
+          // Reset scores
+          player1Score = 0;
+          player2Score = 0;
+          updateScoreboard();
+
+          // Generate new buildings
+          buildings = generateBuildings(10); // Adjust the number of buildings as needed
+
+          // Update the players' positions
+          updatePlayerPositions();
+        }
+
+        resetGame(); // Initialize the game
+
+        function drawPlayer(player) {
+          ctx.beginPath();
+          ctx.rect(player.x, player.y, player.width, player.height);
+          ctx.fillStyle = player.color;
+          ctx.fill();
+          ctx.closePath();
+        }
+
+        function drawBanana() {
+          if (banana.inMotion) {
+            ctx.beginPath();
+            ctx.arc(banana.x, banana.y, banana.radius, 0, Math.PI * 2);
+            ctx.fillStyle = banana.color;
+            ctx.fill();
+            ctx.closePath();
+          }
+        }
+
+        function drawBuilding(building) {
+          ctx.beginPath();
+          ctx.rect(building.x, building.y, building.width, building.height);
+          ctx.fillStyle = building.color;
+          ctx.fill();
+          ctx.closePath();
+        }
+
+        function generateBuildings(numBuildings) {
+          const buildings = [];
+          const buildingWidth = 70;
+          const minHeight = canvas.height / 6;
+          const maxHeight = canvas.height - 120;
+
+          let currentX = 5;
+
+          for (let i = 0; i < numBuildings; i++) {
+            const buildingHeight =
+              Math.floor(Math.random() * (maxHeight - minHeight + 1)) +
+              minHeight;
+            const building = {
+              x: currentX,
+              y: canvas.height - buildingHeight,
+              width: buildingWidth,
+              height: buildingHeight,
+              color: "#808080",
+            };
+
+            buildings.push(building);
+            currentX += buildingWidth + 10; // Add some space between buildings
+          }
+
+          return buildings;
+        }
+
+        function drawBuildings() {
+          buildings.forEach((building) => drawBuilding(building));
+          damages.forEach((damage) => {
+            ctx.globalCompositeOperation = "destination-out"; // Set the operation to clear
+            ctx.beginPath();
+            ctx.arc(damage[0], damage[1], chunkRadius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.closePath();
+            ctx.globalCompositeOperation = "source-over"; // Reset the operation
+          });
+        }
+
+        function updateScoreboard() {
+          scoreboardElement.textContent = `Player 1: ${player1Score} | Player 2: ${player2Score}`;
+        }
+
+        function checkDamageCollsion(object) {
+          let collisions = 0;
+          damages.forEach((damage) => {
+            const distance = Math.sqrt(
+              (object.x - damage[0]) ** 2 + (object.y - damage[1]) ** 2
+            );
+            if (distance <= 20) {
+              collisions++;
+            }
+          });
+          return collisions >= 1;
+        }
+
+        function checkCollision(object1, object2) {
+          return (
+            object1.x < object2.x + object2.width &&
+            object1.x + object1.radius * 2 > object2.x &&
+            object1.y < object2.y + object2.height &&
+            object1.y + object1.radius * 2 > object2.y
+          );
+        }
+
+        function updatePlayerPositions() {
+          // Put players on top of one of the first/last 3 buildings
+          player1pos = Math.floor(Math.random() * (2 - 0 + 1));
+          player2pos = Math.floor(Math.random() * (2 - 0 + 1));
+
+          if (player1pos == 0) {
+            player1.x = 27.5;
+          }
+          if (player1pos == 1) {
+            player1.x = 27.5 + 80;
+          }
+          if (player1pos == 2) {
+            player1.x = 27.5 + 160;
+          }
+
+          if (player2pos == 0) {
+            player2.x = 750;
+          }
+          if (player2pos == 1) {
+            player2.x = 750 - 80;
+          }
+          if (player2pos == 2) {
+            player2.x = 750 - 160;
+          }
+
+          player1.y = canvas.height - buildings[player1pos].height - 10;
+          player2.y =
+            canvas.height -
+            buildings[buildings.length - 1 - player2pos].height -
+            10;
+        }
+
+        function throwBanana(player, angle, velocity) {
+          if (banana.inMotion) {
+            return;
+          }
+          // Turn based check
+          if (player === whoIsNext) {
+            player === player1 ? (whoIsNext = player2) : (whoIsNext = player1);
+          } else {
+            alert("It's not your turn!");
+            return;
+          }
+
+          const angleInRadians = (angle * Math.PI) / 180;
+
+          banana.velocity.x = Math.cos(angleInRadians) * velocity;
+          banana.velocity.y = -Math.sin(angleInRadians) * velocity; // Negative to throw upwards
+
+          banana.x = player.x + player.width / 2;
+          banana.y = player.y - player.height / 2;
+          banana.inMotion = true;
+
+          function update() {
+            banana.velocity.y += banana.gravity * deltaTime;
+
+            banana.x += banana.velocity.x * deltaTime;
+            banana.y += banana.velocity.y * deltaTime;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawBuildings();
+            drawBanana();
+            drawPlayer(player1);
+            drawPlayer(player2);
+            
+            // Check for collision with the ground and out of bounds
+            if (banana.y > canvas.height || banana.x > 850 || banana.x < -50) {
+              banana.inMotion = false;
+            } else {
+              // Check for collision with players
+              let playerCollsion = false;
+              if (
+                checkCollision(banana, player1) ||
+                checkCollision(banana, player2)
+              ) {
+                // In case banana hits a player
+                playerCollsion = true;
+                banana.inMotion = false;
+                damages.clear();
+                handleScore(player); 
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                drawBuildings();
+                drawBanana();
+                drawPlayer(player1);
+                drawPlayer(player2);
+              }
+
+              // Check for collision with buildings
+              if (!checkDamageCollsion(banana)) {
+                for (let i = 0; i < buildings.length; i++) {
+                  if (checkCollision(banana, buildings[i])) {
+                    // Remove a circular chunk from the building at the collision point
+                    const collisionX = Math.max(
+                      buildings[i].x,
+                      Math.min(banana.x, buildings[i].x + buildings[i].width)
+                    );
+                    const collisionY = Math.max(
+                      buildings[i].y,
+                      Math.min(banana.y, buildings[i].y + buildings[i].height)
+                    );
+                    console.log(playerCollsion);
+
+                    if (!playerCollsion) {
+                      damages.add([collisionX, collisionY]);
+                      ctx.globalCompositeOperation = "destination-out"; // Set the operation to clear
+                      ctx.beginPath();
+                      ctx.arc(
+                        collisionX,
+                        collisionY,
+                        chunkRadius,
+                        0,
+                        Math.PI * 2
+                      );
+                      ctx.fill();
+                      ctx.closePath();
+                      ctx.globalCompositeOperation = "source-over"; // Reset the operation
+                      drawPlayer(player1);
+                      drawPlayer(player2);
+                    }
+
+                    // Reset banana position
+                    banana.inMotion = false;
+
+                    break;
+                  }
+                }
+              }
+
+              if (banana.inMotion) {
+                requestAnimationFrame(update);
+              }
+            }
+          }
+
+          update();
+        }
+
+        function handleScore(player) {
+          // Reset banana position
+          banana.inMotion = false;
+
+          // Update scores and check for the game winner
+          if (player === player1) {
+            player1Score += 1;
+          } else {
+            player2Score += 1;
+          }
+
+          updateScoreboard();
+
+          if (player1Score >= maxScore || player2Score >= maxScore) {
+            endGame();
+          } else {
+            // Regenerate buildings and update player positions for the next round
+            buildings = generateBuildings(10);
+            updatePlayerPositions();
+          }
+        }
+
+        function endGame() {
+          // Display the winner
+          const winner = player1Score > player2Score ? "Player 1" : "Player 2";
+          alert(`${winner} wins the game!`);
+
+          resetGame();
+        }
+
+        // Event listener for the throw button
+        document
+          .getElementById("throwButton1")
+          .addEventListener("click", function () {
+            const angle = parseInt(player1.angleInput.value, 10);
+            const velocity = parseInt(player1.velocityInput.value, 10);
+
+            throwBanana(player1, angle, velocity);
+          });
+
+        document
+          .getElementById("throwButton2")
+          .addEventListener("click", function () {
+            const angle = parseInt(player2.angleInput.value, 10);
+            const velocity = parseInt(player2.velocityInput.value, 10);
+
+            throwBanana(player2, 180 - angle, velocity);
+          });
+
+        // Initial draw of the players and buildings
+        drawBuildings();
+        drawPlayer(player1);
+        drawPlayer(player2);
+      });
+    </script>
+  </body>
+</html>
