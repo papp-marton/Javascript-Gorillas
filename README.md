@@ -1,5 +1,5 @@
 # Javascript-Gorillas
-A basic Javascript game isnpired by the famous GORILLAS.BAS
+A basic Javascript game isnpired by the famous GORILLAS.BAS\
 
 [Play](https://papp-marton.github.io/Javascript-Gorillas/)
 
